@@ -177,7 +177,6 @@ class ProofMachine {
                                      BigNum* num_iters) const;
 
   MacroMachine macro_machine_;
-  //*typedef std::list<PatternInstance> historic_instances_type;
   typedef FastList<PatternInstance> historic_instances_type;
   // **TODO: Consider moving these (along with MacroMachineState) into a
   //           ProofMachineState struct to be passed to step(). This would

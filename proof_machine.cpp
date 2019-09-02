@@ -58,10 +58,8 @@ BigNum Pattern::num_times_applicable(const MacroMachineState& mstate) const {
     } else if (lbound_and_delta.second < 0) {
       // Shrinking spans must meet or exceed the lower bound.
       if (span.size < lbound_and_delta.first) return 0;
-      // num_times = std::min(num_times, span.size / lbound_and_delta.first);
       BigNum num_times =
           1 + (span.size - lbound_and_delta.first) / -lbound_and_delta.second;
-      // min_num_times = std::min(min_num_times, num_times);
       if (min_num_times == -1 || num_times < min_num_times) {
         min_num_times = num_times;
       }
@@ -170,7 +168,6 @@ BigNum ProofMachine::step_with_potential_pattern(
   // Maps span IDs to (span_idx, min_size, num_micro_steps_per_symbol,
   // num_micro_steps_offset).
   std::unordered_map<SpanID, std::tuple<int, BigNum, BigNum, BigNum>>
-      // pattern_span_idxs_and_min_sizes;
       pattern_span_info;
   for (int span_idx = 0; span_idx < (int)pattern->num_spans(); ++span_idx) {
     if (pattern->span_size_delta(span_idx) != 0) {
@@ -186,9 +183,6 @@ BigNum ProofMachine::step_with_potential_pattern(
   // these lower-bounds to derive the number of times the pattern can be
   // applied starting from the current sizes.
   BigNum pattern_num_micro_steps0 = 0;
-  //// TODO: Merge this into pattern_span_info instead.
-  // std::unordered_map<SpanID, std::pair<int, BigNum>>
-  // pattern_num_micro_steps1;
   for (BigNum i = 0; i < pattern->num_iters(); ++i) {
     SpanID deleted_span_id = 0;
     Tape::iterator shrunk_span = mstate->tape.end();
@@ -224,15 +218,11 @@ BigNum ProofMachine::step_with_potential_pattern(
           std::get<2>(pattern_span_info.at(old_cur_span_id));
       BigNum& span_num_micro_steps_offset =
           std::get<3>(pattern_span_info.at(old_cur_span_id));
-      // span_num_micro_steps_per_symbol += num_micro_steps_delta / jump;
       span_num_micro_steps_per_symbol += this_num_micro_steps;
       const BigNum& size0 = current_instance.span_size(old_cur_span_idx);
-      // span_num_micro_steps_offset += num_micro_steps_delta / jump *
-      // (old_cur_span->size - size0);
       span_num_micro_steps_offset +=
           this_num_micro_steps * (old_cur_span_size - size0);
     } else {
-      // pattern_num_micro_steps0 += num_micro_steps_delta;
       pattern_num_micro_steps0 += this_num_micro_steps;
     }
   }
@@ -257,11 +247,6 @@ BigNum ProofMachine::step_with_potential_pattern(
 
 void ProofMachine::step(MacroMachineState* mstate, BigNum* num_micro_steps,
                         BigNum* macro_pos, BigNum* num_iters) const {
-  ////if (++call_count_ % 1024 == 0) {
-  // if (++call_count_ % 128 == 0) {
-  //  delete_obsolete_history(mstate->tape);
-  //}
-
   PatternKey pattern_key(*mstate);
 
   //// HACK TESTING (seems to only be useful for one or two machines?)
@@ -305,14 +290,11 @@ void ProofMachine::step(MacroMachineState* mstate, BigNum* num_micro_steps,
       //}
       // return;
 
-      // HACK TESTING
       history_map_.clear();
-      // history_chronology_.clear();
       return;
     }
   }
   historic_instances->push_back(current_instance);
-  // history_chronology_.push_back(pattern_key);
   macro_machine_.step(mstate, num_micro_steps, macro_pos);
   ++*num_iters;
 }

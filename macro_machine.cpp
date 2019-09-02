@@ -57,7 +57,6 @@ void MacroMachine::step(MacroMachineState* mstate, BigNum* num_micro_steps,
     // TODO: Return this via a msg or similar instead of printing.
     cout << "INFINITE MICROLOOP" << endl;
     state = STATE_NOHALT;
-    //*num_macro_steps = -1;
     return;
   }
   BigNum this_num_macro_steps;
@@ -68,7 +67,6 @@ void MacroMachine::step(MacroMachineState* mstate, BigNum* num_micro_steps,
         (!rule.move_right && cur_span == tape.begin())) {
       cout << "INFINITE WALK" << endl;
       state = STATE_NOHALT;
-      // num_macro_steps = -1;
       return;
     }
     BigNum jump = cur_span->size;
@@ -118,10 +116,7 @@ void MacroMachine::step(MacroMachineState* mstate, BigNum* num_micro_steps,
     this_num_macro_steps = rule.move_right ? 1 : -1;
     if (rule.move_right &&
         (moving_right || (cur_span->size == 1 && cur_span != tape.begin())) &&
-        // if (rule.move_right && moving_right &&
-        ////cur_span != tape.begin() &&
         rule.symbol == std::prev(cur_span)->symbol) {
-      // std::cout << "STEP > MERGE" << std::endl;
       // Extend the prev span forward by 1.
       std::prev(cur_span)->size += 1;
       if (cur_span !=
@@ -132,101 +127,71 @@ void MacroMachine::step(MacroMachineState* mstate, BigNum* num_micro_steps,
         if (cur_span->size == 0) {
           if (deleted_span_id) *deleted_span_id = cur_span->id;
           cur_span = tape.erase(cur_span);
-        } else {
-          // cur_span->min_size = std::min(cur_span->min_size,
-          //                              cur_span->size);
         }
       }
     } else if (!rule.move_right &&
                (!moving_right ||
                 (cur_span->size == 1 && cur_span != std::prev(tape.end()))) &&
-               //} else if (!rule.move_right && !moving_right &&
-               ////cur_span != std::prev(tape.end()) &&
                rule.symbol == std::next(cur_span)->symbol) {
-      // std::cout << "STEP < MERGE" << std::endl;
       // Extend the next span backward by 1.
       std::next(cur_span)->size += 1;
-      // if (!cur_span_is_first_or_last) {
       if (cur_span != tape.begin()) {
         cur_span->size -= 1;
         if (shrunk_span) *shrunk_span = cur_span;
         if (cur_span->size == 0) {
           if (deleted_span_id) *deleted_span_id = cur_span->id;
           cur_span = --tape.erase(cur_span);
-        } else {
-          // cur_span->min_size = std::min(cur_span->min_size,
-          //                              cur_span->size);
         }
       }
     } else if (rule.move_right && moving_right) {
-      // std::cout << "STEP > FROM BEG" << std::endl;
       // Insert new size-1 span before current span.
       tape.insert(cur_span, TapeSpan{rule.symbol, 1, span_id_counter++});
-      // if (!cur_span_is_first_or_last) {
       if (cur_span != std::prev(tape.end())) {
         cur_span->size -= 1;
         if (shrunk_span) *shrunk_span = cur_span;
         if (cur_span->size == 0) {
           if (deleted_span_id) *deleted_span_id = cur_span->id;
           cur_span = tape.erase(cur_span);
-        } else {
-          // cur_span->min_size = std::min(cur_span->min_size,
-          //                              cur_span->size);
         }
       }
     } else if (!rule.move_right && !moving_right) {
-      // std::cout << "STEP < FROM END" << std::endl;
       // Insert new size-1 span after current span.
       tape.insert(std::next(cur_span),
                   TapeSpan{rule.symbol, 1, span_id_counter++});
-      // if (!cur_span_is_first_or_last) {
       if (cur_span != tape.begin()) {
         cur_span->size -= 1;
         if (shrunk_span) *shrunk_span = cur_span;
         if (cur_span->size == 0) {
           if (deleted_span_id) *deleted_span_id = cur_span->id;
           cur_span = --tape.erase(cur_span);
-        } else {
-          // cur_span->min_size = std::min(cur_span->min_size,
-          //                              cur_span->size);
         }
       }
     } else if (rule.move_right && !moving_right) {
-      // std::cout << "STEP > FROM END" << std::endl;
       if (rule.symbol != cur_span->symbol) {
         auto old_span = cur_span;
         cur_span = tape.insert(std::next(cur_span),
                                TapeSpan{rule.symbol, 1, span_id_counter++});
-        // if (!cur_span_is_first_or_last) {
         if (old_span != tape.begin()) {
           old_span->size -= 1;
           if (shrunk_span) *shrunk_span = old_span;
           if (old_span->size == 0) {
             if (deleted_span_id) *deleted_span_id = old_span->id;
             tape.erase(old_span);
-          } else {
-            // old_span->min_size = std::min(old_span->min_size,
-            //                              old_span->size);
           }
         }
       }
       cur_span = std::next(cur_span);
     } else {  // !rule.move_right && moving_right
-      // std::cout << "STEP < FROM BEG" << std::endl;
       if (rule.symbol != cur_span->symbol) {
         auto old_span = cur_span;
         cur_span =
             tape.insert(cur_span, TapeSpan{rule.symbol, 1, span_id_counter++});
-        // if (!cur_span_is_first_or_last) {
         if (old_span != std::prev(tape.end())) {
           old_span->size -= 1;
           if (shrunk_span) *shrunk_span = old_span;
           if (old_span->size == 0) {
             if (deleted_span_id) *deleted_span_id = old_span->id;
             tape.erase(old_span);
-          } else {
-            // old_span->min_size = std::min(old_span->min_size,
-            //                              old_span->size);
           }
         }
       }
