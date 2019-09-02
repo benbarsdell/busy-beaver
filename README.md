@@ -1,5 +1,7 @@
 # BB's Busy Beaver
 
+[![Build Status](https://travis-ci.com/benbarsdell/busy-beaver.svg?branch=master)](https://travis-ci.com/benbarsdell/busy-beaver)
+
 Efficient simulator of [busy
 beaver](https://en.wikipedia.org/wiki/Busy_Beaver_game) Turing
 machines, capable of evaluating the best known 6-state machine (that
