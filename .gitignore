@@ -1,0 +1,11 @@
+# Backup files
+*~
+
+# Compiled files
+*.so
+*.o*
+*.lo
+*.la
+*.a
+.deps
+busy_beaver

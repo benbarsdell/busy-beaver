@@ -1,0 +1,12 @@
+
+language: cpp
+os:
+  - linux
+dist: bionic
+compiler:
+  - gcc
+  - clang
+install:
+  - make get-deps
+script:
+  - make && make test && make test_long
