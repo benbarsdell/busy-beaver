@@ -95,9 +95,6 @@ class ConciseCompareBigNum {
     uint32_t lo_9_digits, num_digits;
     detail::summarize_bignum(bn, &mantissa, &lo_9_digits, &num_digits);
     int32_t hi_9_digits = (int32_t)(mantissa * 100000000);
-    std::cout << hi_9_digits << " vs. " << hi9_ << std::endl;
-    std::cout << lo_9_digits << " vs. " << lo9_ << std::endl;
-    std::cout << num_digits << " vs. " << numdig_ << std::endl;
     return hi_9_digits == hi9_ && lo_9_digits == lo9_ && num_digits == numdig_;
   }
 
