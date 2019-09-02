@@ -46,160 +46,161 @@ void MacroMachine::step(MacroMachineState* mstate, BigNum* num_micro_steps,
   if (this_num_micro_steps_ptr)
     *this_num_micro_steps_ptr = this_num_micro_steps;
   if (did_jump) *did_jump = false;
-  // HACK TODO: Replace these with direct access (e.g., mstate->cur_span).
-  auto& state = mstate->state;
-  auto& tape = mstate->tape;
-  auto& cur_span = mstate->cur_span;
-  auto& moving_right = mstate->moving_right;
-  auto& span_id_counter = mstate->span_id_counter;
 
   if (rule.state == STATE_NOHALT) {
     // TODO: Return this via a msg or similar instead of printing.
     cout << "INFINITE MICROLOOP" << endl;
-    state = STATE_NOHALT;
+    mstate->state = STATE_NOHALT;
     return;
   }
   BigNum this_num_macro_steps;
-  if (rule.state == state && rule.move_right == moving_right) {
+  if (rule.state == mstate->state && rule.move_right == mstate->moving_right) {
     // No state change, can jump.
     // Check for infinite walk at end of tape.
-    if ((rule.move_right && cur_span == --tape.end()) ||
-        (!rule.move_right && cur_span == tape.begin())) {
+    if ((rule.move_right && mstate->cur_span == --mstate->tape.end()) ||
+        (!rule.move_right && mstate->cur_span == mstate->tape.begin())) {
       cout << "INFINITE WALK" << endl;
-      state = STATE_NOHALT;
+      mstate->state = STATE_NOHALT;
       return;
     }
-    BigNum jump = cur_span->size;
+    BigNum jump = mstate->cur_span->size;
     if (did_jump) *did_jump = true;
     this_num_micro_steps *= jump;
     this_num_macro_steps = rule.move_right ? jump : -jump;
-    if (rule.move_right && rule.symbol == std::prev(cur_span)->symbol) {
+    if (rule.move_right && rule.symbol == std::prev(mstate->cur_span)->symbol) {
       // Keep the older span, erase the newer one (enables more proofs).
-      if (std::prev(cur_span)->id < cur_span->id) {
+      if (std::prev(mstate->cur_span)->id < mstate->cur_span->id) {
         // Extend the prev span to encompass the current span.
-        std::prev(cur_span)->size += cur_span->size;
-        if (deleted_span_id) *deleted_span_id = cur_span->id;
-        cur_span = tape.erase(cur_span);
+        std::prev(mstate->cur_span)->size += mstate->cur_span->size;
+        if (deleted_span_id) *deleted_span_id = mstate->cur_span->id;
+        mstate->cur_span = mstate->tape.erase(mstate->cur_span);
       } else {
         // Extend the current span to encompass the previous one.
-        cur_span->symbol = rule.symbol;
-        cur_span->size += std::prev(cur_span)->size;
-        if (deleted_span_id) *deleted_span_id = std::prev(cur_span)->id;
-        tape.erase(std::prev(cur_span));
-        cur_span = std::next(cur_span);
+        mstate->cur_span->symbol = rule.symbol;
+        mstate->cur_span->size += std::prev(mstate->cur_span)->size;
+        if (deleted_span_id) *deleted_span_id = std::prev(mstate->cur_span)->id;
+        mstate->tape.erase(std::prev(mstate->cur_span));
+        mstate->cur_span = std::next(mstate->cur_span);
       }
-    } else if (!rule.move_right && rule.symbol == std::next(cur_span)->symbol) {
+    } else if (!rule.move_right &&
+               rule.symbol == std::next(mstate->cur_span)->symbol) {
       // Keep the older span, erase the newer one (enables more proofs).
-      if (std::next(cur_span)->id < cur_span->id) {
+      if (std::next(mstate->cur_span)->id < mstate->cur_span->id) {
         // Extend the next span to encompass the current span.
-        std::next(cur_span)->size += cur_span->size;
-        if (deleted_span_id) *deleted_span_id = cur_span->id;
-        cur_span = --tape.erase(cur_span);
+        std::next(mstate->cur_span)->size += mstate->cur_span->size;
+        if (deleted_span_id) *deleted_span_id = mstate->cur_span->id;
+        mstate->cur_span = --mstate->tape.erase(mstate->cur_span);
       } else {
         // Extend the current span to encompass the next one.
-        cur_span->symbol = rule.symbol;
-        cur_span->size += std::next(cur_span)->size;
-        if (deleted_span_id) *deleted_span_id = std::next(cur_span)->id;
-        tape.erase(std::next(cur_span));
-        cur_span = std::prev(cur_span);
+        mstate->cur_span->symbol = rule.symbol;
+        mstate->cur_span->size += std::next(mstate->cur_span)->size;
+        if (deleted_span_id) *deleted_span_id = std::next(mstate->cur_span)->id;
+        mstate->tape.erase(std::next(mstate->cur_span));
+        mstate->cur_span = std::prev(mstate->cur_span);
       }
     } else {
       // Change current span's symbol (it may also stay the same).
-      cur_span->symbol = rule.symbol;
+      mstate->cur_span->symbol = rule.symbol;
       if (rule.move_right) {
-        cur_span = std::next(cur_span);
+        mstate->cur_span = std::next(mstate->cur_span);
       } else {
-        cur_span = std::prev(cur_span);
+        mstate->cur_span = std::prev(mstate->cur_span);
       }
     }
   } else {  // Can only take a single macro step.
     this_num_macro_steps = rule.move_right ? 1 : -1;
     if (rule.move_right &&
-        (moving_right || (cur_span->size == 1 && cur_span != tape.begin())) &&
-        rule.symbol == std::prev(cur_span)->symbol) {
+        (mstate->moving_right || (mstate->cur_span->size == 1 &&
+                                  mstate->cur_span != mstate->tape.begin())) &&
+        rule.symbol == std::prev(mstate->cur_span)->symbol) {
       // Extend the prev span forward by 1.
-      std::prev(cur_span)->size += 1;
-      if (cur_span !=
-          std::prev(tape.end())) {  // TODO: These guards are a bit hacky; not
-                                    // sure how necessary they are.
-        cur_span->size -= 1;
-        if (shrunk_span) *shrunk_span = cur_span;
-        if (cur_span->size == 0) {
-          if (deleted_span_id) *deleted_span_id = cur_span->id;
-          cur_span = tape.erase(cur_span);
+      std::prev(mstate->cur_span)->size += 1;
+      if (mstate->cur_span !=
+          std::prev(
+              mstate->tape.end())) {  // TODO: These guards are a bit hacky; not
+                                      // sure how necessary they are.
+        mstate->cur_span->size -= 1;
+        if (shrunk_span) *shrunk_span = mstate->cur_span;
+        if (mstate->cur_span->size == 0) {
+          if (deleted_span_id) *deleted_span_id = mstate->cur_span->id;
+          mstate->cur_span = mstate->tape.erase(mstate->cur_span);
         }
       }
     } else if (!rule.move_right &&
-               (!moving_right ||
-                (cur_span->size == 1 && cur_span != std::prev(tape.end()))) &&
-               rule.symbol == std::next(cur_span)->symbol) {
+               (!mstate->moving_right ||
+                (mstate->cur_span->size == 1 &&
+                 mstate->cur_span != std::prev(mstate->tape.end()))) &&
+               rule.symbol == std::next(mstate->cur_span)->symbol) {
       // Extend the next span backward by 1.
-      std::next(cur_span)->size += 1;
-      if (cur_span != tape.begin()) {
-        cur_span->size -= 1;
-        if (shrunk_span) *shrunk_span = cur_span;
-        if (cur_span->size == 0) {
-          if (deleted_span_id) *deleted_span_id = cur_span->id;
-          cur_span = --tape.erase(cur_span);
+      std::next(mstate->cur_span)->size += 1;
+      if (mstate->cur_span != mstate->tape.begin()) {
+        mstate->cur_span->size -= 1;
+        if (shrunk_span) *shrunk_span = mstate->cur_span;
+        if (mstate->cur_span->size == 0) {
+          if (deleted_span_id) *deleted_span_id = mstate->cur_span->id;
+          mstate->cur_span = --mstate->tape.erase(mstate->cur_span);
         }
       }
-    } else if (rule.move_right && moving_right) {
+    } else if (rule.move_right && mstate->moving_right) {
       // Insert new size-1 span before current span.
-      tape.insert(cur_span, TapeSpan{rule.symbol, 1, span_id_counter++});
-      if (cur_span != std::prev(tape.end())) {
-        cur_span->size -= 1;
-        if (shrunk_span) *shrunk_span = cur_span;
-        if (cur_span->size == 0) {
-          if (deleted_span_id) *deleted_span_id = cur_span->id;
-          cur_span = tape.erase(cur_span);
+      mstate->tape.insert(mstate->cur_span,
+                          TapeSpan{rule.symbol, 1, mstate->span_id_counter++});
+      if (mstate->cur_span != std::prev(mstate->tape.end())) {
+        mstate->cur_span->size -= 1;
+        if (shrunk_span) *shrunk_span = mstate->cur_span;
+        if (mstate->cur_span->size == 0) {
+          if (deleted_span_id) *deleted_span_id = mstate->cur_span->id;
+          mstate->cur_span = mstate->tape.erase(mstate->cur_span);
         }
       }
-    } else if (!rule.move_right && !moving_right) {
+    } else if (!rule.move_right && !mstate->moving_right) {
       // Insert new size-1 span after current span.
-      tape.insert(std::next(cur_span),
-                  TapeSpan{rule.symbol, 1, span_id_counter++});
-      if (cur_span != tape.begin()) {
-        cur_span->size -= 1;
-        if (shrunk_span) *shrunk_span = cur_span;
-        if (cur_span->size == 0) {
-          if (deleted_span_id) *deleted_span_id = cur_span->id;
-          cur_span = --tape.erase(cur_span);
+      mstate->tape.insert(std::next(mstate->cur_span),
+                          TapeSpan{rule.symbol, 1, mstate->span_id_counter++});
+      if (mstate->cur_span != mstate->tape.begin()) {
+        mstate->cur_span->size -= 1;
+        if (shrunk_span) *shrunk_span = mstate->cur_span;
+        if (mstate->cur_span->size == 0) {
+          if (deleted_span_id) *deleted_span_id = mstate->cur_span->id;
+          mstate->cur_span = --mstate->tape.erase(mstate->cur_span);
         }
       }
-    } else if (rule.move_right && !moving_right) {
-      if (rule.symbol != cur_span->symbol) {
-        auto old_span = cur_span;
-        cur_span = tape.insert(std::next(cur_span),
-                               TapeSpan{rule.symbol, 1, span_id_counter++});
-        if (old_span != tape.begin()) {
+    } else if (rule.move_right && !mstate->moving_right) {
+      if (rule.symbol != mstate->cur_span->symbol) {
+        auto old_span = mstate->cur_span;
+        mstate->cur_span = mstate->tape.insert(
+            std::next(mstate->cur_span),
+            TapeSpan{rule.symbol, 1, mstate->span_id_counter++});
+        if (old_span != mstate->tape.begin()) {
           old_span->size -= 1;
           if (shrunk_span) *shrunk_span = old_span;
           if (old_span->size == 0) {
             if (deleted_span_id) *deleted_span_id = old_span->id;
-            tape.erase(old_span);
+            mstate->tape.erase(old_span);
           }
         }
       }
-      cur_span = std::next(cur_span);
-    } else {  // !rule.move_right && moving_right
-      if (rule.symbol != cur_span->symbol) {
-        auto old_span = cur_span;
-        cur_span =
-            tape.insert(cur_span, TapeSpan{rule.symbol, 1, span_id_counter++});
-        if (old_span != std::prev(tape.end())) {
+      mstate->cur_span = std::next(mstate->cur_span);
+    } else {  // !rule.move_right && mstate->moving_right
+      if (rule.symbol != mstate->cur_span->symbol) {
+        auto old_span = mstate->cur_span;
+        mstate->cur_span = mstate->tape.insert(
+            mstate->cur_span,
+            TapeSpan{rule.symbol, 1, mstate->span_id_counter++});
+        if (old_span != std::prev(mstate->tape.end())) {
           old_span->size -= 1;
           if (shrunk_span) *shrunk_span = old_span;
           if (old_span->size == 0) {
             if (deleted_span_id) *deleted_span_id = old_span->id;
-            tape.erase(old_span);
+            mstate->tape.erase(old_span);
           }
         }
       }
-      cur_span = std::prev(cur_span);
+      mstate->cur_span = std::prev(mstate->cur_span);
     }
     // Update state.
-    state = rule.state;
-    moving_right = rule.move_right;
+    mstate->state = rule.state;
+    mstate->moving_right = rule.move_right;
   }
   *num_micro_steps += this_num_micro_steps;
   *num_macro_steps += this_num_macro_steps;
