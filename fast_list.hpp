@@ -28,8 +28,9 @@
 
 #pragma once
 
-#include <vector>
 #include <cassert>
+#include <memory>
+#include <vector>
 
 // Same API as std::list, but all memory is stored in a single std::vector.
 // Note that unlike std::list, this will potentially invalidate iterators after
@@ -61,6 +62,9 @@ class FastList {
       return reinterpret_cast<const_pointer>(&raw);
     }
   };
+
+  typedef typename std::allocator_traits<Allocator>::template rebind_alloc<Node>
+      node_allocator_type;
 
   template <typename ContainerType, typename NodeType, typename Pointer,
             typename Reference>
@@ -200,8 +204,8 @@ class FastList {
     nodes_[index].next = it.index_;
     nodes_[index].prev = prev_index;
     // TODO: Add support for stateful allocators.
-    allocator_type allocator;
-    std::allocator_traits<allocator_type>::construct(
+    node_allocator_type allocator;
+    std::allocator_traits<node_allocator_type>::construct(
         allocator, nodes_[index].value_ptr(), std::forward<Args>(args)...);
     nodes_[it.index_].prev = index;
     nodes_[prev_index].next = index;
@@ -248,7 +252,7 @@ class FastList {
   }
 
  private:
-  std::vector<Node, allocator_type> nodes_;
+  std::vector<Node, node_allocator_type> nodes_;
   size_type free_head_;
   size_type size_;
 };
