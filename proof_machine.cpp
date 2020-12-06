@@ -165,16 +165,20 @@ BigNum ProofMachine::step_with_potential_pattern(
     BigNum* num_iters) const {
   // At this point the pattern has only been proven for span sizes larger than
   // the current ones.
-  // Maps span IDs to (span_idx, min_size, num_micro_steps_per_symbol,
-  // num_micro_steps_offset).
-  std::unordered_map<SpanID, std::tuple<int, BigNum, BigNum, BigNum>>
-      pattern_span_info;
+  struct SpanInfo {
+    int idx;
+    BigNum min_size;
+    BigNum num_micro_steps_per_symbol;
+    BigNum num_micro_steps_offset;
+  };
+  using SpanInfoMap = std::unordered_map<SpanID, SpanInfo>;
+  SpanInfoMap pattern_span_info;
   for (int span_idx = 0; span_idx < (int)pattern->num_spans(); ++span_idx) {
     if (pattern->span_size_delta(span_idx) != 0) {
       pattern_span_info.emplace(
           current_instance.span_id(span_idx),
-          std::make_tuple(span_idx, current_instance.span_size(span_idx),
-                          BigNum(0), BigNum(0)));
+          SpanInfo{span_idx, current_instance.span_size(span_idx), BigNum(0),
+                   BigNum(0)});
     }
   }
   // Run forward for another round of the pattern while keeping track of the
@@ -206,21 +210,17 @@ BigNum ProofMachine::step_with_potential_pattern(
     if (shrunk_span != mstate->tape.end()) {
       auto it = pattern_span_info.find(shrunk_span->id);
       if (it != pattern_span_info.end()) {
-        BigNum& min_span_size = std::get<1>(it->second);
-        min_span_size = std::min(min_span_size, shrunk_span->size);
+        it->second.min_size = std::min(it->second.min_size, shrunk_span->size);
       }
     }
     // Track the no. micro steps as a function of the span sizes.
-    if (did_jump &&
-        pattern_span_info.count(old_cur_span_id)) {  // HACK TESTING .count
-      int old_cur_span_idx = std::get<0>(pattern_span_info.at(old_cur_span_id));
-      BigNum& span_num_micro_steps_per_symbol =
-          std::get<2>(pattern_span_info.at(old_cur_span_id));
-      BigNum& span_num_micro_steps_offset =
-          std::get<3>(pattern_span_info.at(old_cur_span_id));
-      span_num_micro_steps_per_symbol += this_num_micro_steps;
-      const BigNum& size0 = current_instance.span_size(old_cur_span_idx);
-      span_num_micro_steps_offset +=
+    SpanInfoMap::iterator old_cur_span_info_iter;
+    if (did_jump && (old_cur_span_info_iter = pattern_span_info.find(
+                         old_cur_span_id)) != pattern_span_info.end()) {
+      auto& old_cur_span_info = old_cur_span_info_iter->second;
+      old_cur_span_info.num_micro_steps_per_symbol += this_num_micro_steps;
+      const BigNum& size0 = current_instance.span_size(old_cur_span_info.idx);
+      old_cur_span_info.num_micro_steps_offset +=
           this_num_micro_steps * (old_cur_span_size - size0);
     } else {
       pattern_num_micro_steps0 += this_num_micro_steps;
@@ -232,15 +232,13 @@ BigNum ProofMachine::step_with_potential_pattern(
   // meaningful until here.
   pattern->update_num_micro_steps(pattern_num_micro_steps0);
   for (const auto& item : pattern_span_info) {
-    int span_idx = std::get<0>(item.second);
-    const BigNum& span_min_size = std::get<1>(item.second);
-    const BigNum& span_num_micro_steps_per_symbol = std::get<2>(item.second);
-    const BigNum& span_num_micro_steps_offset = std::get<3>(item.second);
-    const BigNum& span_start_size = current_instance.span_size(span_idx);
-    BigNum span_size_lower_bound = span_start_size - span_min_size + 1;
-    pattern->update_span_size_lower_bound(span_idx, span_size_lower_bound);
-    pattern->update_span_num_micro_steps(
-        span_idx, span_num_micro_steps_per_symbol, span_num_micro_steps_offset);
+    auto& span_info = item.second;
+    const BigNum& span_start_size = current_instance.span_size(span_info.idx);
+    BigNum span_size_lower_bound = span_start_size - span_info.min_size + 1;
+    pattern->update_span_size_lower_bound(span_info.idx, span_size_lower_bound);
+    pattern->update_span_num_micro_steps(span_info.idx,
+                                         span_info.num_micro_steps_per_symbol,
+                                         span_info.num_micro_steps_offset);
   }
   return pattern->apply(mstate, num_micro_steps, macro_pos, num_iters);
 }
